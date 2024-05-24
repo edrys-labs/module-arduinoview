@@ -1,0 +1,30 @@
+<input type='button' value='click' onclick=sendframe('!bc')><input type='range' min=0 max=255 onchange=sendframe('!r'+this.value)> <br>
+<textarea id='msg' style='width:100%'> </textarea><br>
+<svg width='100%' height='90%' viewBox='-600 -600 1200 1200'>
+    <line id='pxy' x1='0' y1='0' x2='10' y2='10' style='stroke:rgb(255,0,0);stroke-width:2' />
+</svg>
+<svg width='100%' height='90%' viewBox='-600 -600 1200 1200'>
+    <line id='histx' x1='0' y1='0' x2='10' y2='10' style='stroke:rgb(255,0,0);stroke-width:2' />
+    <line id='histy' x1='0' y1='0' x2='10' y2='10' style='stroke:rgb(255,0,0);stroke-width:2' />
+</svg>
+
+<script>
+function messagedecode(msg){
+var intfromhex = function(hex){
+var ret = parseInt('0x'+hex);
+if (ret > 0x7fff) ret -= 0xffff;
+return ret;};
+var getEl=function(x){return document.getElementById(x)};
+var setEl=function(el,attr,val){(el).setAttributeNS(null,attr,val)};
+var x=intfromhex(msg.substring(0,4));
+var y=intfromhex(msg.substring(4,8));
+var r=intfromhex(msg.substring(8,12));
+var g=intfromhex(msg.substring(12,16));
+var b=intfromhex(msg.substring(16,24));
+pxy=getEl('pxy');
+setEl(pxy,'x2',x);
+setEl(pxy,'y2',y);
+getEl('msg').value=(''+x+','+y+','+ Math.round(Math.sqrt(x*x+y*y))+'('+ r +','+ g +','+ b +')');
+}
+runner[17]=messagedecode;
+</script>
