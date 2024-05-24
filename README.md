@@ -12,6 +12,10 @@ See the example at
 
 https://github.com/edrys-labs/lab-arduinoview/
 
+and here is the demo on on YouTube:
+
+https://www.youtube.com/watch?v=gb14CpXkoec
+
 ## Arduino
 
 This module is based on the implementation of Karl Fessel from:
