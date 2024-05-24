@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "build": "rm -rf docs/* && npx parcel build --no-cache --dist-dir docs --public-url https://edrys-labs.github.io/module-arduinoview src/index.html",
+    "build": "rm -rf docs/* && npx parcel build --no-cache --no-optimize --no-scope-hoist --dist-dir docs --public-url https://edrys-labs.github.io/module-arduinoview src/index.html",
     "watch": "npx parcel serve src/index.html --open chrome",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
