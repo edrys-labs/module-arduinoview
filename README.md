@@ -2,8 +2,15 @@
 
 This module allows to run "websites" on an Arduino that communicate via WebSerial and can be used to control the Arduino, display measurements, etc.
 
+in order to use this module, simply add the following url to your modules in your configuration:
 
+https://edrys-labs.github.io/module-arduinoview/
 
+The fun part is, that the actual experiment is hosted on your Arduino, it will host the entire website and if you connect different devices, the same lab configuration can host various experiments.
+
+See the example at
+
+https://github.com/edrys-labs/lab-arduinoview/
 
 ## Arduino
 
