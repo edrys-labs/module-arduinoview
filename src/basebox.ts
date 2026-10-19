@@ -10,10 +10,8 @@ declare global {
 
 export default class BaseBox {
   protected host: null | Window = null
-  protected IDs: {
-    id: string
-    element: HTMLElement | null
-  }[] = []
+  // elements by their 2-character id
+  protected IDs: Record<string, { id: string; element: HTMLElement | null }> = {}
   protected currentElement: null | Element = null
   protected hostinfo = null
 
@@ -67,6 +65,7 @@ export default class BaseBox {
   eval(x: string) {
     try {
       const self = this
+      // not unused: these are in scope for the code the Arduino sends with `!j`
       let sendraw = (x) => {
         self.sendRaw(x)
       }

@@ -338,7 +338,6 @@ function receiveFromSandbox(msg, publish) {
             if (!publish) sendToSandbox(msg.data);
             break;
         case "resize":
-            window.resizeTo(msg.data[0], msg.data[1]);
             break;
         default:
             console.warn("unknown message type from the sandbox:", msg);
@@ -641,4 +640,4 @@ window.addEventListener("message", (event)=>{
 ui.sandbox.addEventListener("load", helloSandbox);
 render();
 
-//# sourceMappingURL=index.fd071c14.js.map
+//# sourceMappingURL=index.e9adba75.js.map

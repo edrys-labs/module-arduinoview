@@ -336,7 +336,8 @@ function receiveFromSandbox(msg: { type: string; data: any }, publish: boolean) 
       if (!publish) sendToSandbox(msg.data)
       break
     case 'resize':
-      window.resizeTo(msg.data[0], msg.data[1])
+      // `sendresize()` from the desktop Arduinoview: an iframe cannot resize
+      // itself, the GUI scrolls instead
       break
     default:
       console.warn('unknown message type from the sandbox:', msg)

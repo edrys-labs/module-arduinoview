@@ -1,18 +1,19 @@
 {
   "name": "module-arduinoview",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Edrys module: host a GUI on an Arduino and share it with everyone in a station room via Web Serial",
   "scripts": {
     "build": "rm -rf docs/* && npx parcel build --no-cache --no-optimize --no-scope-hoist --dist-dir docs --public-url https://edrys-labs.github.io/module-arduinoview src/index.html",
     "watch": "npx parcel serve src/index.html --open chrome",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"e2e tests: see edrys-module-tests/modules/module-arduinoview\" && exit 1"
   },
   "author": "André Dietrich",
-  "license": "ISC",
+  "contributors": [
+    "Jihad Hyadi"
+    ],
+  "license": "MIT",
   "devDependencies": {
-    "@types/webxr": "^0.5.15",
     "buffer": "^6.0.3",
-    "caniuse-lite": "^1.0.30001612",
     "echarts": "^5.5.0",
     "parcel": "^2.12.0"
   }

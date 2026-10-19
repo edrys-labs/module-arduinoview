@@ -24,13 +24,9 @@ function throttle(func, limit) {
 }
 
 export default class SandBox extends BaseBox {
-  protected IDs: {
-    id: string
-    element: HTMLElement | null
-    data?: any
-    csndata?: any
-    chart?: any
-  }[] = []
+  // elements created by `!S`, by their 2-character id; graphs carry their
+  // chart, data and the functions `!d`/`!c` call
+  protected IDs: Record<string, { id: string; element: HTMLElement | null; [key: string]: any }> = {}
 
   constructor() {
     super()
@@ -71,9 +67,7 @@ export default class SandBox extends BaseBox {
     var data = x.split('!')
 
     for (let i in data) {
-      // ToDo: what is this used for?
-      // var aid = data[i][0]
-      var value = data[i].substr(1)
+      var value = data[i].substring(1)
 
       switch (data[i][0]) {
         case 'w': //width
@@ -96,20 +90,15 @@ export default class SandBox extends BaseBox {
     return ret
   }
 
-  //L Label _name
-  //c checkbox
-  //G FixedGraph
-  //M MovingGraph  _name _size
-  //s Slider _min _max
-  //S SVG
-
+  // `!S<element><ID><data>`, elements:
+  // l line break, d inline-block div, b button, s slider, p colour picker,
+  // c checkbox, t text input, k key events, G graph (M: deprecated moving graph)
   createStandardElement(x: string) {
-    //<element><ID><data>
     var element = x[0]
-    var id = x.substr(1, 2)
+    var id = x.substring(1, 3)
     var elementID = '_SD_' + id
 
-    var data = this.parseData(x.substr(3))
+    var data = this.parseData(x.substring(3))
     switch (element) {
       //l line-break
       case 'l':
@@ -163,16 +152,10 @@ export default class SandBox extends BaseBox {
           >`
         )
 
-        const slider = document.getElementById(elementID) as HTMLInputElement
         this.IDs[id] = {
-          element: slider,
+          element: document.getElementById(elementID),
           id: elementID,
         }
-
-        /*slider.oninput = throttle(function () {
-          sendframe('!g' + id + this.value)
-        }, 500)
-        */
         break
 
       // color Picker
@@ -286,11 +269,13 @@ export default class SandBox extends BaseBox {
         new ResizeObserver(() => chart.resize()).observe(elem)
 
         this.IDs[id] = {
+          id: elementID,
           element: elem,
           chart,
           max: parseInt(data.value) || 100,
           add: function (d: string) {
-            const [max, x, y] = d.split(',').map(Number)
+            // `max,x,y`: x is not used, the time of arrival is the x axis
+            const [max, , y] = d.split(',').map(Number)
 
             this.max = max
 
@@ -351,48 +336,18 @@ export default class SandBox extends BaseBox {
         }
     }
   }
-  /*
 
-        //TODO inidizierte Daten?
-        c.onupdate = c.plote
-        c.maxsize = data.value ? data.value : 1000
-        c.plote()
-
-        IDs[id] = (function () {
-          return {
-            element: elem,
-            c: c,
-            data: function (d) {
-              this.c.attach_data(this.uncsn(d))
-            },
-            csndata: function (d) {
-              this.c.attach_data(d)
-            },
-          }
-        })()
-
-
-        break
-    }
-  }
-*/
-
+  // `!d<ID><data>`: hands the data to the element (graphs: `max,x,y`)
   guiData(x: string) {
-    //calls data function of element
-    //<element ID><data>
-    const elementID = x.substr(0, 2)
-    var data = x.substr(2)
-    this.IDs[elementID].add(data)
+    const element = this.IDs[x.substring(0, 2)]
+    if (element?.add) element.add(x.substring(2))
+    else console.warn('no graph for data:', x)
   }
 
-  //may be deprecated
-  //transforms comma separated list of Numbers to an array
-  //calls csndata function of element (plots)
-  //<element ID><CSNdata>
+  // `!c<ID><numbers>`: comma separated numbers for a graph (may be deprecated)
   csnData(x: string) {
-    var elementID = x.substr(0, 2)
-    var data = x.substr(2)
-
-    this.IDs[elementID].csndata(data.split(',').map(Number))
+    const element = this.IDs[x.substring(0, 2)]
+    if (element?.csndata) element.csndata(x.substring(2).split(',').map(Number))
+    else console.warn('no graph for data:', x)
   }
 }
