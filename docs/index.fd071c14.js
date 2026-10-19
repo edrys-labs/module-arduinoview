@@ -10,7 +10,8 @@ const SUBJECT = {
     connect: "connect",
     reload: "reload",
     receiveBuffer: "receive-buffer",
-    fromSandbox: "receivedFromSandbox"
+    fromSandbox: "receivedFromSandbox",
+    replay: "replay"
 };
 const BAUD_RATES = [
     "110",
@@ -33,6 +34,11 @@ const DEFAULTS = {
 const ARDUINO_RESET_DELAY = 2000;
 // a student's Connect/Reload waits this long for the station to react
 const STATION_TIMEOUT = 10000;
+// what the station keeps to replay the GUI to a joining peer: page-building
+// frames up to this many characters (more: the joiner has to click Reload),
+// the last value of each control, and the last graph data frames
+const REPLAY_LIMIT = 262144;
+const REPLAY_DATA_FRAMES = 1000;
 // teletype framing with escaping (ArduinoView/Frameiterator.h)
 const SOF = 0x01;
 const EOF = 0x04;
@@ -48,6 +54,8 @@ let state = {
 };
 let ready = false;
 let guiReceived = false;
+// the station's GUI was too large to replay to us
+let replayMissing = false;
 // a student asked the station for something and waits for its answer
 let pending = null;
 const serial = navigator.serial;
@@ -133,7 +141,7 @@ function render() {
     ui.reload.disabled = !ready || !present;
     ui.baudrate.disabled = ui.autoconnect.disabled = !ready || !present || busy || state.connected;
     ui.placeholder.hidden = guiReceived;
-    ui.placeholder.textContent = !ready ? "" : state.connected ? "Waiting for the GUI of the Arduino\u2026" : station ? "Connect an Arduino to show its GUI." : "Waiting for the station to connect an Arduino\u2026";
+    ui.placeholder.textContent = !ready ? "" : replayMissing ? "The GUI of the Arduino is too large to be sent to you. Click Reload to load it again." : state.connected ? "Waiting for the GUI of the Arduino\u2026" : station ? "Connect an Arduino to show its GUI." : "Waiting for the station to connect an Arduino\u2026";
 }
 // station: change the state and tell everyone
 function setState(patch) {
@@ -207,23 +215,113 @@ function onSettingsChanged() {
 // ---------------------------------------------------------------------------
 // Sandbox
 const sandboxWindow = ()=>ui.sandbox.contentWindow;
+// While the sandbox loads, messages wait here; it answers our `hello` with
+// `ready` when it can take them.
+let sandboxReady = false;
+let sandboxQueue = [];
+function postToSandbox(msg) {
+    if (sandboxReady) sandboxWindow()?.postMessage(msg, "*");
+    else sandboxQueue.push(msg);
+}
+// Only after onReady: edrys.js trusts the origin of the first message this
+// window gets, so the sandbox's answer must not come before edrys-Lite's.
+function helloSandbox() {
+    if (ready) sandboxWindow()?.postMessage({
+        type: "hello"
+    }, "*");
+}
+function onSandboxReady() {
+    sandboxReady = true;
+    const queue = sandboxQueue;
+    sandboxQueue = [];
+    queue.forEach(postToSandbox);
+}
 function sendHostInfo(connected) {
-    sandboxWindow()?.postMessage({
+    postToSandbox({
         type: "hostinfo",
         data: JSON.stringify({
             connected
         })
-    }, "*");
+    });
 }
 function sendToSandbox(msg) {
     if (!guiReceived) {
         guiReceived = true;
+        replayMissing = false;
         render();
     }
-    sandboxWindow()?.postMessage({
+    postToSandbox({
         type: "frame",
         data: msg
-    }, "*");
+    });
+    // `!!` reloads the sandbox: hold back what follows until it is ready again
+    if (msg.startsWith("!!")) sandboxReady = false;
+}
+// load the sandbox again, empty
+function resetSandbox() {
+    guiReceived = false;
+    sandboxReady = false;
+    sandboxQueue = [];
+    // keep the src as built (Parcel makes it absolute)
+    ui.sandbox.src = ui.sandbox.src;
+    render();
+}
+// ---------------------------------------------------------------------------
+// Replay for joining peers (station)
+let recording = {
+    frames: [],
+    size: 0,
+    complete: true,
+    values: new Map(),
+    data: []
+};
+function clearRecording() {
+    recording = {
+        frames: [],
+        size: 0,
+        complete: true,
+        values: new Map(),
+        data: []
+    };
+}
+function record(frame) {
+    if (!isStation()) return;
+    const head = frame.substring(0, 2);
+    if (head === "!!") // the Arduino starts its GUI from scratch
+    clearRecording();
+    else if (head === "!g") recording.values.set(frame.substring(0, 4), frame);
+    else if (head === "!d" || head === "!c") {
+        recording.data.push(frame);
+        if (recording.data.length > REPLAY_DATA_FRAMES) recording.data.shift();
+    } else if (recording.complete) {
+        if (recording.size + frame.length > REPLAY_LIMIT) {
+            recording.complete = false;
+            recording.frames = [];
+            recording.size = 0;
+        } else {
+            recording.frames.push(frame);
+            recording.size += frame.length;
+        }
+    }
+}
+function replay() {
+    const { complete, frames, values, data } = recording;
+    return {
+        complete,
+        frames: complete ? [
+            ...frames,
+            ...values.values(),
+            ...data
+        ] : []
+    };
+}
+// joining peer: show the station's GUI so far
+function applyReplay(body) {
+    resetSandbox();
+    if (!body.complete) {
+        replayMissing = true;
+        render();
+    } else body.frames.forEach(sendToSandbox);
 }
 // an action in a sandbox: our own (publish to the others) or another peer's
 function receiveFromSandbox(msg, publish) {
@@ -234,6 +332,7 @@ function receiveFromSandbox(msg, publish) {
             writeSerial(msg.data);
             break;
         case "frame":
+            record(msg.data);
             sendArrayBuffer(prepareSerialFrame(msg.data));
             // mirror the action (slider position, …) in this sandbox
             if (!publish) sendToSandbox(msg.data);
@@ -246,17 +345,13 @@ function receiveFromSandbox(msg, publish) {
     }
 }
 function reloadSandbox() {
-    guiReceived = false;
-    render();
-    // keep the src as built (Parcel makes it absolute)
-    ui.sandbox.src = ui.sandbox.src;
-    if (port) // ask the Arduino for its GUI only once the reloaded sandbox can receive it
-    ui.sandbox.addEventListener("load", ()=>{
+    resetSandbox();
+    if (isStation()) clearRecording();
+    if (port) {
+        // the answer waits in the queue until the sandbox is ready
         sendArrayBuffer(prepareSerialFrame("!!"));
         sendHostInfo(true);
-    }, {
-        once: true
-    });
+    }
 }
 // ---------------------------------------------------------------------------
 // Framing
@@ -273,6 +368,7 @@ function onReceiveCallback(bytes) {
             stringReceived = "";
             else if (c == EOF) {
                 logger(1, "rx Serial Frame: " + stringReceived);
+                record(stringReceived);
                 sendToSandbox(stringReceived);
                 stringReceived = "";
                 receiverstatus = "no";
@@ -378,6 +474,7 @@ async function connect(interactive) {
         });
         setTimeout(()=>{
             if (port !== p) return;
+            clearRecording();
             sendArrayBuffer(prepareSerialFrame("!!"));
             sendHostInfo(true);
         }, ARDUINO_RESET_DELAY);
@@ -444,6 +541,8 @@ function onReloadClicked() {
 // Edrys
 Edrys.onReady(()=>{
     ready = true;
+    // the sandbox has most likely loaded by now
+    helloSandbox();
     if (isStation()) {
         loadSettings();
         setState({});
@@ -479,6 +578,7 @@ Edrys.onMessage(({ from, subject, body })=>{
         switch(subject){
             case SUBJECT.init:
                 send(SUBJECT.update, state, from);
+                send(SUBJECT.replay, replay(), from);
                 break;
             case SUBJECT.connect:
                 if (state.connected) disconnect();
@@ -515,6 +615,9 @@ Edrys.onMessage(({ from, subject, body })=>{
                 render();
             }
             break;
+        case SUBJECT.replay:
+            if (fromStation && body && Array.isArray(body.frames)) applyReplay(body);
+            break;
         case SUBJECT.receiveBuffer:
             // device output runs as HTML/JS in the sandbox: accept it only from the station
             if (fromStation && body instanceof Uint8Array) onReceiveCallback(body);
@@ -530,8 +633,12 @@ ui.reload.addEventListener("click", onReloadClicked);
 ui.baudrate.addEventListener("change", onSettingsChanged);
 ui.autoconnect.addEventListener("change", onSettingsChanged);
 window.addEventListener("message", (event)=>{
-    if (event.source === sandboxWindow()) receiveFromSandbox(event.data, true);
+    if (event.source !== sandboxWindow()) return;
+    if (event.data?.type === "ready") onSandboxReady();
+    else receiveFromSandbox(event.data, true);
 });
+// every (re)load of the sandbox, also its own on `!!`
+ui.sandbox.addEventListener("load", helloSandbox);
 render();
 
-//# sourceMappingURL=index.1301cd40.js.map
+//# sourceMappingURL=index.fd071c14.js.map

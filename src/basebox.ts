@@ -97,6 +97,8 @@ export default class BaseBox {
       },
       false
     )
+    // Don't message the host first: edrys.js in the host trusts the origin of
+    // the first message it gets. The host asks with `hello` once it is ready.
   }
 
   HTMLreplace(value) {
@@ -180,6 +182,11 @@ export default class BaseBox {
         } catch (e) {
           console.warn('failed to decode hostinfo', e.message)
         }
+        break
+      }
+      // the host asks whether we can take frames
+      case 'hello': {
+        this.send('ready', null)
         break
       }
       default: {

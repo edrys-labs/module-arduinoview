@@ -363,7 +363,8 @@ class SandBox extends (0, _baseboxDefault.default) {
                 if (data.value.includes("u")) w.addEventListener("keyup", onKey);
                 break;
             case "M":
-                alert("Moving graph M is deprecated use Graph G");
+                // no alert(): it would block an unattended station
+                console.warn("Moving graph M is deprecated, use Graph G");
                 data.value = data.value ? data.value : "100";
             //G graph containing upto 1000 values by default
             //set number of values by giving value (v...)
@@ -381,9 +382,8 @@ class SandBox extends (0, _baseboxDefault.default) {
                 if (!elem.style.width) elem.style.width = "100%";
                 if (!elem.style.height) elem.style.height = "20em";
                 const chart = _echarts.init(elem);
-                window.onresize = function() {
-                    chart.resize();
-                };
+                // every graph follows its own size (window.onresize kept only the last one)
+                new ResizeObserver(()=>chart.resize()).observe(elem);
                 this.IDs[id] = {
                     element: elem,
                     chart,
@@ -440,8 +440,9 @@ class SandBox extends (0, _baseboxDefault.default) {
                         });
                     },
                     data: [],
+                    // `!c` hands over the numbers already split
                     csndata: function(d) {
-                        this.add(d);
+                        this.add(d.join(","));
                     }
                 };
         }
@@ -104646,6 +104647,8 @@ class BaseBox {
         window.addEventListener("message", (data)=>{
             self.receiveMessage(data);
         }, false);
+    // Don't message the host first: edrys.js in the host trusts the origin of
+    // the first message it gets. The host asks with `hello` once it is ready.
     }
     HTMLreplace(value) {
         if (!this.currentElement) this.getElement();
@@ -104704,6 +104707,10 @@ class BaseBox {
                 } catch (e) {
                     console.warn("failed to decode hostinfo", e.message);
                 }
+                break;
+            // the host asks whether we can take frames
+            case "hello":
+                this.send("ready", null);
                 break;
             default:
                 console.warn("unknown message type", event.data);

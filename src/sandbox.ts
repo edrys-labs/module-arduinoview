@@ -255,7 +255,8 @@ export default class SandBox extends BaseBox {
         if (data.value.includes('u')) w.addEventListener('keyup', onKey)
         break
       case 'M':
-        alert('Moving graph M is deprecated use Graph G')
+        // no alert(): it would block an unattended station
+        console.warn('Moving graph M is deprecated, use Graph G')
         data.value = data.value ? data.value : '100'
 
       //G graph containing upto 1000 values by default
@@ -281,9 +282,8 @@ export default class SandBox extends BaseBox {
 
         const chart = echarts.init(elem)
 
-        window.onresize = function () {
-          chart.resize()
-        }
+        // every graph follows its own size (window.onresize kept only the last one)
+        new ResizeObserver(() => chart.resize()).observe(elem)
 
         this.IDs[id] = {
           element: elem,
@@ -344,8 +344,9 @@ export default class SandBox extends BaseBox {
           },
           data: [],
 
-          csndata: function (d) {
-            this.add(d)
+          // `!c` hands over the numbers already split
+          csndata: function (d: number[]) {
+            this.add(d.join(','))
           },
         }
     }
