@@ -140,7 +140,8 @@
       })
 
       Edrys.onMessage(({ from, subject, body }) => {
-        // console.log('Message:', from, subject, body)
+        // edrys delivers our own messages back to us, we have handled them already
+        if (from === Edrys.username) return
 
         switch (subject) {
           case 'init':

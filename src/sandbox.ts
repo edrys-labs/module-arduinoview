@@ -46,17 +46,17 @@ export default class SandBox extends BaseBox {
       '!c': (x: string) => {
         self.csnData(x)
       },
+      // an action on another peer's GUI, mirrored here
       '!g': (x: string) => {
-        var elementID = x.substr(0, 2)
-        var data = x.substr(2)
+        const entry = self.IDs[x.substring(0, 2)]
+        const sync = entry && (document.getElementById(entry.id) as HTMLInputElement | null)
+        if (!sync) return
 
-        try {
-          const sync = document.getElementById(self.IDs[elementID].id)
-
-          if (sync) sync.value = data
-        } catch (e) {
-          console.warn('sync failed', e.message)
-        }
+        const data = x.substring(2)
+        // a button sends no data, its label must stay
+        if (sync.type === 'button') return
+        if (sync.type === 'checkbox') sync.checked = data === 't'
+        else sync.value = data
       },
     })
   }
@@ -195,22 +195,19 @@ export default class SandBox extends BaseBox {
         }
 
         picker.oninput = throttle(function () {
-          sendframe('!g' + id + this.value)
+          window.sendframe('!g' + id + this.value)
         }, 200)
         break
 
       //c checkbox
       case 'c':
         this.HTMLappend(
-          '<input id="' +
-            elementID +
-            '" type="checkbox"' +
-            ' onchange=\'sendframe("!g' +
-            id +
-            '"+this.value?"t":"f")\'' +
-            ' style="' +
-            data.style +
-            '">'
+          `<input
+            type="checkbox"
+            id="${elementID}"
+            onchange="sendframe('!g${id}' + (this.checked ? 't' : 'f'))"
+            style="${data.style}"
+          >`
         )
         this.IDs[id] = {
           element: document.getElementById(elementID),
@@ -224,7 +221,7 @@ export default class SandBox extends BaseBox {
           `<input
             type="text"
             id="${elementID}"
-            value="${data.value}
+            value="${data.value}"
             onchange="sendframe('!g${id}'+ this.value)"
             style="${data.style}"
           >`
@@ -242,7 +239,8 @@ export default class SandBox extends BaseBox {
         var w = this.getElement()
         if ((w as HTMLInputElement).tabIndex < 0)
           (w as HTMLInputElement).tabIndex = 0
-        var onKey = function (e) {
+        // arrow function: `this` must stay the SandBox, not the element
+        var onKey = (e) => {
           var msg = '!g' + id
           if (!e.repeat) {
             if (e.type == 'keydown') msg += 'd'

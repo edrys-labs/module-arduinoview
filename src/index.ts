@@ -1,3 +1,14 @@
+// globals shared with the inline script in index.html
+interface Window {
+  state: { autoconnect: boolean; baudrate: string; connected: boolean }
+  station: boolean | undefined
+  send: (cmd: string, param: any) => void
+  update: (state?: Window['state']) => void
+  receiveFromSandBox: (data: any, publish: boolean) => void
+  onReceiveCallback: (info: ArrayBuffer) => void
+  sendArrayBuffer: (buf: ArrayBuffer) => void
+}
+
 const communication = navigator as Navigator & {
   serial?: any
 }
@@ -45,7 +56,10 @@ function sendHostInfo(connected: boolean) {
 }
 
 //interprets a message from the sandbox and calls a function depending on the type
-function receiveFromSandbox(event: MessageEvent, publish = true) {
+function receiveFromSandbox(
+  event: Pick<MessageEvent, 'data' | 'source'>,
+  publish = true
+) {
   if (sandbox !== event.source) return
 
   if (window.send && publish) {
@@ -123,7 +137,7 @@ function onReceiveCallback(info) {
         stringReceived += String.fromCharCode(c)
       }
     } else if (receiverstatus == frmstatus.esc) {
-      stringReceived += String.fromCharCode(ESC ^ ESCMASK)
+      stringReceived += String.fromCharCode(c ^ ESCMASK)
       receiverstatus = frmstatus.in
     } else if (receiverstatus == frmstatus.no) {
       if (c == SOF) {
@@ -157,24 +171,17 @@ function sendArrayBuffer(buf: ArrayBuffer) {
 // create a buffer that contains a frame that will be send to the serial connection
 function prepareSerialFrame(str: string) {
   logger(1, 'tx Serial Frame: ' + str)
-  var buf = new ArrayBuffer(str.length * 2 + 2)
-  var bufView = new Uint8Array(buf)
-  var bufi = 0
-  bufView[bufi] = SOF
-  bufi++
-  for (var i = 0; i < str.length; i++) {
-    var c = str.charCodeAt(i)
+  const bytes = [SOF]
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i) & 0xff
     if (c == SOF || c == EOF || c == ESC) {
-      bufView[bufi] = ESC
-      bufView[bufi] = c ^ ESCMASK
-      bufi += 2
+      bytes.push(ESC, c ^ ESCMASK)
     } else {
-      bufView[bufi] = c
-      bufi++
+      bytes.push(c)
     }
   }
-  bufView[bufi] = EOF
-  return buf
+  bytes.push(EOF)
+  return new Uint8Array(bytes).buffer
 }
 
 // write a string to the serial connection
@@ -328,8 +335,15 @@ function initSandbox() {
     }
 
     if (port) {
-      sendArrayBuffer(prepareSerialFrame('!!'))
-      sendHostInfo(true)
+      // ask the Arduino for its GUI only once the reloaded sandbox can receive it
+      localSandbox.addEventListener(
+        'load',
+        () => {
+          sendArrayBuffer(prepareSerialFrame('!!'))
+          sendHostInfo(true)
+        },
+        { once: true }
+      )
     }
   }
 }

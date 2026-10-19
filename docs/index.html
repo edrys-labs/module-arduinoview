@@ -108,7 +108,8 @@ Edrys.onReady(()=>{
     }
 });
 Edrys.onMessage(({ from, subject, body })=>{
-    // console.log('Message:', from, subject, body)
+    // edrys delivers our own messages back to us, we have handled them already
+    if (from === Edrys.username) return;
     switch(subject){
         case "init":
             if (window.station) window.send("update", window.state);
@@ -161,6 +162,6 @@ Edrys.onMessage(({ from, subject, body })=>{
     </div>
 
     <iframe id="sandbox" src="https://edrys-labs.github.io/module-arduinoview/sandbox.html"></iframe>
-    <script src="https://edrys-labs.github.io/module-arduinoview/index.18e70c72.js"></script>
+    <script src="https://edrys-labs.github.io/module-arduinoview/index.6703f8b3.js"></script>
   </body>
 </html>

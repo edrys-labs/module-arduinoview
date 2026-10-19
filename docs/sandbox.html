@@ -192,15 +192,16 @@ class SandBox extends (0, _baseboxDefault.default) {
             "!c": (x)=>{
                 self.csnData(x);
             },
+            // an action on another peer's GUI, mirrored here
             "!g": (x)=>{
-                var elementID = x.substr(0, 2);
-                var data = x.substr(2);
-                try {
-                    const sync = document.getElementById(self.IDs[elementID].id);
-                    if (sync) sync.value = data;
-                } catch (e) {
-                    console.warn("sync failed", e.message);
-                }
+                const entry = self.IDs[x.substring(0, 2)];
+                const sync = entry && document.getElementById(entry.id);
+                if (!sync) return;
+                const data = x.substring(2);
+                // a button sends no data, its label must stay
+                if (sync.type === "button") return;
+                if (sync.type === "checkbox") sync.checked = data === "t";
+                else sync.value = data;
             }
         });
     }
@@ -311,12 +312,17 @@ class SandBox extends (0, _baseboxDefault.default) {
                     id: elementID
                 };
                 picker.oninput = throttle(function() {
-                    sendframe("!g" + id + this.value);
+                    window.sendframe("!g" + id + this.value);
                 }, 200);
                 break;
             //c checkbox
             case "c":
-                this.HTMLappend('<input id="' + elementID + '" type="checkbox"' + " onchange='sendframe(\"!g" + id + '"+this.value?"t":"f")\'' + ' style="' + data.style + '">');
+                this.HTMLappend(`<input
+            type="checkbox"
+            id="${elementID}"
+            onchange="sendframe('!g${id}' + (this.checked ? 't' : 'f'))"
+            style="${data.style}"
+          >`);
                 this.IDs[id] = {
                     element: document.getElementById(elementID),
                     id: elementID
@@ -327,7 +333,7 @@ class SandBox extends (0, _baseboxDefault.default) {
                 this.HTMLappend(`<input
             type="text"
             id="${elementID}"
-            value="${data.value}
+            value="${data.value}"
             onchange="sendframe('!g${id}'+ this.value)"
             style="${data.style}"
           >`);
@@ -341,7 +347,8 @@ class SandBox extends (0, _baseboxDefault.default) {
                 // TODO filter repetition, select event to listen to
                 var w = this.getElement();
                 if (w.tabIndex < 0) w.tabIndex = 0;
-                var onKey = function(e) {
+                // arrow function: `this` must stay the SandBox, not the element
+                var onKey = (e)=>{
                     var msg = "!g" + id;
                     if (!e.repeat) {
                         if (e.type == "keydown") msg += "d";

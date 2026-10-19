@@ -1,3 +1,4 @@
+// globals shared with the inline script in index.html
 const communication = navigator;
 var port = null;
 var writer = null;
@@ -90,7 +91,7 @@ function onReceiveCallback(info) {
             } else if (c == ESC) receiverstatus = frmstatus.esc;
             else stringReceived += String.fromCharCode(c);
         } else if (receiverstatus == frmstatus.esc) {
-            stringReceived += String.fromCharCode(ESC ^ ESCMASK);
+            stringReceived += String.fromCharCode(c ^ ESCMASK);
             receiverstatus = frmstatus.in;
         } else if (receiverstatus == frmstatus.no) {
             if (c == SOF) {
@@ -117,24 +118,16 @@ function sendArrayBuffer(buf) {
 // create a buffer that contains a frame that will be send to the serial connection
 function prepareSerialFrame(str) {
     logger(1, "tx Serial Frame: " + str);
-    var buf = new ArrayBuffer(str.length * 2 + 2);
-    var bufView = new Uint8Array(buf);
-    var bufi = 0;
-    bufView[bufi] = SOF;
-    bufi++;
-    for(var i = 0; i < str.length; i++){
-        var c = str.charCodeAt(i);
-        if (c == SOF || c == EOF || c == ESC) {
-            bufView[bufi] = ESC;
-            bufView[bufi] = c ^ ESCMASK;
-            bufi += 2;
-        } else {
-            bufView[bufi] = c;
-            bufi++;
-        }
+    const bytes = [
+        SOF
+    ];
+    for(let i = 0; i < str.length; i++){
+        const c = str.charCodeAt(i) & 0xff;
+        if (c == SOF || c == EOF || c == ESC) bytes.push(ESC, c ^ ESCMASK);
+        else bytes.push(c);
     }
-    bufView[bufi] = EOF;
-    return buf;
+    bytes.push(EOF);
+    return new Uint8Array(bytes).buffer;
 }
 // write a string to the serial connection
 function writeSerial(str) {
@@ -244,10 +237,13 @@ function initSandbox() {
             window.send("reload", null);
             return;
         }
-        if (port) {
+        if (port) // ask the Arduino for its GUI only once the reloaded sandbox can receive it
+        localSandbox.addEventListener("load", ()=>{
             sendArrayBuffer(prepareSerialFrame("!!"));
             sendHostInfo(true);
-        }
+        }, {
+            once: true
+        });
     }
 }
 {
@@ -264,4 +260,4 @@ function initSandbox() {
     window.onReceiveCallback = onReceiveCallback;
     window.sendArrayBuffer = sendArrayBuffer;
 }
-//# sourceMappingURL=index.18e70c72.js.map
+//# sourceMappingURL=index.6703f8b3.js.map
