@@ -150,8 +150,10 @@ export default class BaseBox {
   }
 
   // interprets Messages that are send to the sandbox
-  receiveMessage(event) {
-    this.host = event.source
+  receiveMessage(event: MessageEvent) {
+    // only the module frame around us may drive the sandbox
+    if (event.source !== window.parent) return
+    this.host = window.parent
 
     //console.warn('receiveMessage', event.data.type, event.data.data)
 

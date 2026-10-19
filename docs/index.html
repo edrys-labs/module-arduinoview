@@ -123,8 +123,13 @@ Edrys.onMessage(({ from, subject, body })=>{
             if (window.station) document.getElementById("reload").click();
             break;
         case "receive-buffer":
-            if (window.station !== true) window.onReceiveCallback(window.binary.decode(body));
-            break;
+            {
+                // device output runs as HTML/JS in the sandbox: accept it only from
+                // the station (messages are signed, so the sender's role holds)
+                const senderRole = Edrys.liveClass?.users?.[from]?.role;
+                if (window.station !== true && senderRole === "station") window.onReceiveCallback(window.binary.decode(body));
+                break;
+            }
         case "receivedFromSandbox":
             window.receiveFromSandBox(JSON.parse(body), false);
             break;
@@ -161,7 +166,10 @@ Edrys.onMessage(({ from, subject, body })=>{
       <button id="reload">Reload</button>
     </div>
 
-    <iframe id="sandbox" src="https://edrys-labs.github.io/module-arduinoview/sandbox.html"></iframe>
+    <!-- sandboxed: the Arduino's HTML/JS gets an opaque origin and cannot reach
+         this frame or Edrys; allow-downloads for the charts' "save as image",
+         allow-modals for sketches that call alert() (see the examples) -->
+    <iframe id="sandbox" src="https://edrys-labs.github.io/module-arduinoview/sandbox.html" sandbox="allow-scripts allow-downloads allow-modals"></iframe>
     <script src="https://edrys-labs.github.io/module-arduinoview/index.6703f8b3.js"></script>
   </body>
 </html>
