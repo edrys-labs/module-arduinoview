@@ -25,7 +25,7 @@ beginrunnerlist(GUI);
 endrunnerlist();
 
 int value = 0;
-int ledPin = 13;      // LED connected to digital pin 9
+int ledPin = 13;      // LED connected to digital pin 13
 
 void sliderCallback(char * str, size_t length){
   // "Transformation to the time domain (0-25 ms)"
@@ -60,7 +60,9 @@ void setup() {
 int cycleTime = 30;             // the total duration of a PWM cycle
 
 void loop() {
-  frm.run();
+  // read everything that arrived: run() takes one byte, and a cycle below
+  // lasts 30 ms
+  while(frm.run());
   // simulated PWM for fading the LED
   digitalWrite(ledPin, HIGH); // sets the LED on
   delay(value);               // wait for value milliseconds

@@ -5,7 +5,6 @@
 // This Example demostrates the creation of a graph and pushes Data into it
 
 
-#include <LiquidCrystal.h>
 #include <FrameStream.h>
 #include <Frameiterator.h>
 
@@ -19,7 +18,7 @@ endrunnerlist();
 
 
 void InitGUI(){
-  frm.print("!h<h1>ArduinoView</h1> <h2>Demo 4 - Graph </h2>");
+  frm.print("!h<h1>ArduinoView</h1> <h2>Demo 5 - Graph </h2>");
   frm.print("<p>");
   frm.print("</p>");
   frm.end();
@@ -48,10 +47,12 @@ void loop() {
   static int i = 0;
   ++i;
   if (i >= 200) i=0;
-  // send data to Graph gr first value 100
-  // second value upcounting i
+  // send data to Graph gr: !d<ID><max>,<x>,<y>
+  // first value: the graph keeps the last 50 values (0: all of them);
+  //   it is the number of values that counts, v50 above only sets the start
+  // second value upcounting i (not shown: the time of arrival is the x axis)
   // third  value demostartes the useability of float
-  frm.print("!dgr100,");
+  frm.print("!dgr50,");
   frm.print(i);
   frm.print(",");
   frm.print(100.0/(float(i+5)/10));

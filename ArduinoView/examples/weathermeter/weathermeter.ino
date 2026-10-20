@@ -6,6 +6,10 @@
 // 9 = VCC
 // 8 =  signal
 
+// This example uses the low-level StringtoFrame and Framereader of
+// Frameiterator.h. The page is sent once; every second a frame for the runner
+// "wm" (defined with !j) updates the values in place, so the page does not grow.
+
 
 #include <avr/pgmspace.h>
 #include <Frameiterator.h>
@@ -20,6 +24,9 @@ struct{
     int16_t hum;
 }weather;
 
+// the last sensor error, shown in the page (empty: none)
+const char * sensorError = "";
+
 #define DHT11_PIN 8
 
 void PowerInit() {
@@ -31,33 +38,42 @@ void PowerInit() {
 }
 
 void ReadDHT() {
-    static StringtoFrame I;
     int chk = DHT.read11(DHT11_PIN);
     switch (chk)
     {
         case DHTLIB_OK:
             weather.temp=DHT.temperature;
             weather.hum=DHT.humidity;
+            sensorError = "";
             break;
+        // shown in the page, not alert(): in Edrys an alert blocks every participant's GUI
         case DHTLIB_ERROR_CHECKSUM:
-            I=StringtoFrame("!jalert('cksum error')");
-            while(!I.end())Serial.write(I.next());
+            sensorError = "checksum error";
             break;
         case DHTLIB_ERROR_TIMEOUT:
-            I=StringtoFrame("!jalert('time error')");
-            while(!I.end())Serial.write(I.next());
+            sensorError = "timeout";
             break;
         default:
-            I=StringtoFrame("!jalert('error')");
-            while(!I.end())Serial.write(I.next());
+            sensorError = "error";
             break;
     }
 }
 
-void StartpageINIT(){
-    StringtoFrame I;
-    I = StringtoFrame(StrInt("!h"),2);//empty gui
+void sendFrame(const __FlashStringHelper * str){
+    StringtoFrame I = StringtoFrame(str);
     while(!I.end())Serial.write(I.next());
+}
+
+void StartpageINIT(){
+    sendFrame(F("!h<h1>Temperature: <span id='temp'>-</span> &deg;C, humidity: <span id='hum'>-</span> %</h1>"
+                "<p id='err' style='color:#b8384a'></p>"));
+    // the runner "wm" takes "<temperature>;<humidity>;<error>"
+    sendFrame(F("!jrunner['wm']=function(x){"
+                "var v=x.split(';');"
+                "document.getElementById('temp').innerText=v[0];"
+                "document.getElementById('hum').innerText=v[1];"
+                "document.getElementById('err').innerText=v[2]?'Sensor: '+v[2]:'';"
+                "};"));
 }
 
 void setup() {
@@ -100,35 +116,31 @@ void loop() {
             Duty d= Duty(13);
             ReadDHT();
             {
-                //Test of different Strings
-                I=StringtoFrame(StrInt("!H"),2);
-                //I=StringtoFrame(F("!H"));
-                // I=StringtoFrame("!H");
+                // one frame "wm<temp>;<hum>;<error>", built from several strings
+                I=StringtoFrame(StrInt("wm"),2);
                 while(!I.done())Serial.write(I.next());
 
                 char buf[10];
                 char * str;
 
-                I.addString(F("<h1> Temperatur: "));
-                while(!I.done())Serial.write(I.next());
-
                 str = itoa(weather.temp,buf,10);
                 I.addString(str);
                 while(!I.done())Serial.write(I.next());
 
-                I.addString(F(" Feuchte: "));
+                I.addString(F(";"));
                 while(!I.done())Serial.write(I.next());
-
 
                 str = itoa(weather.hum,buf,10);
                 I.addString(str);
                 while(!I.done())Serial.write(I.next());
 
-                I.addString(F("</h1>"));
+                I.addString(F(";"));
+                while(!I.done())Serial.write(I.next());
+
+                I.addString(sensorError);
                 while(!I.end())Serial.write(I.next());
             }
         }
     }
 
 }
-

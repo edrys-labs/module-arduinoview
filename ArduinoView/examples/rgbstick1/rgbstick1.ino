@@ -160,7 +160,8 @@ void StartpageINIT(char* str,size_t length){
     frm.print(startpage);
     frm.end();
 
-    frm.print(F("!jalert(\"click on the Heading\")"));
+    // a hint in the page, not alert(): in Edrys an alert blocks every participant's GUI
+    frm.print(F("!H<p>Click on the heading to start.</p>"));
     frm.end();
 }
 
@@ -168,6 +169,7 @@ void PageINIT(char* str,size_t length){
     const __FlashStringHelper * initpage = F("!h"
     "<input type='button' value='click' onclick=sendframe('!bc')><input type='range' min=0 max=255 onchange=sendframe('!r'+this.value)> <br>\n"
     "<textarea id='msg' style='width:100%'> </textarea><br>\n"
+    "<p id='count'></p>\n"
     "<svg width='100%' height='90%' viewBox='-600 -600 1200 1200'>\n"
     "<line id='pxy' x1='0' y1='0' x2='10' y2='10' style='stroke:rgb(255,0,0);stroke-width:2' />\n"
     "</svg>\n");
@@ -190,7 +192,8 @@ void PageINIT(char* str,size_t length){
     "setEl(pxy,'y2',y);\n"
     "getEl('msg').value=(''+x+','+y+','+ Math.round(Math.sqrt(x*x+y*y))+'('+ r +','+ g +','+ b +')');\n"
     "}\n"
-    "runner[17]=messagedecode;\n");
+    "runner[17]=messagedecode;\n"
+    "runner['ct']=function(ms){document.getElementById('count').innerText='I counted to '+ms;};\n");
 
     //if( length >= 3 && str[2]=='c'){
         frm.print(initpage);
@@ -207,7 +210,7 @@ void setup() {
     Serial.begin(OUTPUT__BAUD_RATE);
     JoystickInit();
     RGBInit();
-    StartpageINIT("",0);
+    StartpageINIT(nullptr, 0);
     //PageINIT();
 }
 
@@ -264,7 +267,7 @@ void loop() {
                 int y = (((long) (joy.y - (joymax.y + joymin.y ) / 2)) << 9) / (joymax.y - joymin.y );
 
                 frm.print("17");
-                char * str = "    ";
+                char str[5] = "    "; // a buffer: writing into a string literal is undefined
                 int16HEX(str,x);
                 frm.print(str);
                 //             frm.print(x,HEX);
@@ -295,9 +298,9 @@ void loop() {
             static uint32_t before=50;
             if (now - before > 3000){
                 before = now;
-                frm.print(F("!jalert(\" i counted to "));
+                // shown in the page by the runner 'ct' (see PageINIT), not alert()
+                frm.print(F("ct"));
                 frm.print(now);
-                frm.print(F("\");"));
                 frm.end();
             }
         }

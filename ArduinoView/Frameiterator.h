@@ -66,7 +66,7 @@ struct StringtoFrame
     }
 
     // initializes a frame starting with a Programm memory string
-    StringtoFrame(PGM_P str_p, char * /*mark*/)
+    StringtoFrame(PGM_P str_p, const char * /*mark*/)
     {
         // programm memory String
         this->str = str_p;
@@ -130,7 +130,7 @@ struct StringtoFrame
     }
 
     // add programm memory String to frame
-    bool addString(PGM_P str_p, char * /*mark*/)
+    bool addString(PGM_P str_p, const char * /*mark*/)
     {
         if (this->done())
         {

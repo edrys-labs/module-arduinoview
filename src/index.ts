@@ -28,7 +28,8 @@ const DEFAULTS = { baudrate: '9600', autoconnect: false }
 const ARDUINO_RESET_DELAY = 2000
 // what the station keeps to replay the GUI to a joining peer: page-building
 // frames up to this many characters (more: the station has to Reload),
-// the last value of each control, and the last graph data frames
+// the last value of each control, and the last data frames (graphs, and the
+// sketch's own runners)
 const REPLAY_LIMIT = 256 * 1024
 const REPLAY_DATA_FRAMES = 1000
 
@@ -265,7 +266,7 @@ let recording = {
   size: 0,
   complete: true,
   values: new Map<string, string>(), // last `!g` frame per control
-  data: [] as string[], // last graph data frames
+  data: [] as string[], // last data frames (graphs, the sketch's own runners)
 }
 
 function clearRecording() {
@@ -280,7 +281,9 @@ function record(frame: string) {
     clearRecording()
   } else if (head === '!g') {
     recording.values.set(frame.substring(0, 4), frame)
-  } else if (head === '!d' || head === '!c') {
+  } else if (head === '!d' || head === '!c' || !head.startsWith('!')) {
+    // graph data, and frames for the sketch's own runners (`runner['vt']`):
+    // usually a stream of values, so only the last ones are kept
     recording.data.push(frame)
     if (recording.data.length > REPLAY_DATA_FRAMES) recording.data.shift()
   } else if (recording.complete) {

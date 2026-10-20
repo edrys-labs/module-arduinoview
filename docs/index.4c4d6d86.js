@@ -37,7 +37,8 @@ const DEFAULTS = {
 const ARDUINO_RESET_DELAY = 2000;
 // what the station keeps to replay the GUI to a joining peer: page-building
 // frames up to this many characters (more: the station has to Reload),
-// the last value of each control, and the last graph data frames
+// the last value of each control, and the last data frames (graphs, and the
+// sketch's own runners)
 const REPLAY_LIMIT = 262144;
 const REPLAY_DATA_FRAMES = 1000;
 // teletype framing with escaping (ArduinoView/Frameiterator.h)
@@ -289,7 +290,9 @@ function record(frame) {
     if (head === "!!") // the Arduino starts its GUI from scratch
     clearRecording();
     else if (head === "!g") recording.values.set(frame.substring(0, 4), frame);
-    else if (head === "!d" || head === "!c") {
+    else if (head === "!d" || head === "!c" || !head.startsWith("!")) {
+        // graph data, and frames for the sketch's own runners (`runner['vt']`):
+        // usually a stream of values, so only the last ones are kept
         recording.data.push(frame);
         if (recording.data.length > REPLAY_DATA_FRAMES) recording.data.shift();
     } else if (recording.complete) {
@@ -646,4 +649,4 @@ window.addEventListener("message", (event)=>{
 ui.sandbox.addEventListener("load", helloSandbox);
 render();
 
-//# sourceMappingURL=index.36780c67.js.map
+//# sourceMappingURL=index.4c4d6d86.js.map

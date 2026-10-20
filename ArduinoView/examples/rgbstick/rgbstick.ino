@@ -195,7 +195,8 @@ void StartpageINIT(){
     I = StringtoFrame(startpage, "");
     while(!I.end())Serial.write(I.next());
 
-    I = StringtoFrame("!jalert(\"click on the Heading\")");
+    // a hint in the page, not alert(): in Edrys an alert blocks every participant's GUI
+    I = StringtoFrame("!H<p>Click on the heading to start.</p>");
     while(!I.end())Serial.write(I.next());
 }
 
@@ -319,7 +320,7 @@ void loop() {
               I=StringtoFrame("17");
                 while(!I.done())Serial.write(I.next());
 
-                char * str = "    ";
+                char str[5] = "    "; // a buffer: writing into a string literal is undefined
 
                 int16HEX(str,x);
                 I.addString(str ,4);

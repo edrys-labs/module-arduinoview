@@ -34,7 +34,7 @@ void update_vals(){
 
 void InitGUI(){
     //initilize Page HTML
-    frm.print(F("!h<h1>ArduinoView</h1> <h2>Demo 10 - JSTable </h2>"));
+    frm.print(F("!h<h1>ArduinoView</h1> <h2>Demo 4 - JSTable </h2>"));
     frm.print(F("<table><tr><th>Pin</th><th>Value</th></tr>"
     "<tr><td>A1</td><td id='T1'></td></tr>"
     "<tr><td>A2</td><td id='T2'></td></tr>"
