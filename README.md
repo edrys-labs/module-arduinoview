@@ -36,11 +36,18 @@ The header shows everyone the state of the device: **not connected**, **connecti
 **connected · 57600 baud**, **device lost**, or **no station** when the room has no station. Errors such as a
 cancelled port dialog or a busy port appear next to it, for everyone.
 
-**Reload** asks the Arduino for its GUI again, for example after editing the sketch.
+The station and teachers have the connection controls (baud rate, auto-connect, Connect/Disconnect). A teacher in
+the station's room uses them remotely: the station carries out the teacher's clicks, and ignores such requests
+from anyone else. Students see the state and use the Arduino's GUI.
 
-Students can use the controls too, to change the baud rate, connect or disconnect and reload. This lets a remote
-class run the station on its own. A browser only opens the port dialog after a click on the station itself, so
-the station has to choose the port once. After that, a student's **Connect** reuses it.
+A browser only shows the port dialog after a click at the station itself. So a teacher's **Connect** works once
+the station has chosen the port. Otherwise the teacher is asked to click Connect at the station once. For a
+station that runs without anyone at it, turn on **auto-connect** (see below): it connects when the station opens
+and when the Arduino is plugged in again.
+
+**Reload** at the station or by a teacher asks the Arduino for its GUI again, for everyone, for example after
+editing the sketch. A student's **Reload** only loads the station's current GUI again into their own view; the
+Arduino is not asked.
 
 ### Settings
 
@@ -110,18 +117,21 @@ sketch answers it with its `InitGUI()` (see the examples).
 [documentation/Documentation.md](documentation/Documentation.md).
 
 The Arduino's page runs in a sandboxed iframe: its HTML and JavaScript cannot reach the module or Edrys. Only the
-station's serial output is shown. Other peers cannot send output in its name.
+station's serial output is shown. Other peers cannot send output in its name. Actions in a GUI go to the Arduino
+as they are, but only control values (`!g` frames) are mirrored into the other participants' GUIs.
 
 ## Messages
 
-All peers run this module and only talk to each other (no `promiscuous` listener). For reference:
+All peers run this module and only talk to each other (no `promiscuous` listener). Messages are signed by
+edrys-Lite, so the module checks the sender's role: peers accept `update`, `replay` and `receive-buffer` only from
+the station, and the station accepts `connect`, `reload` and `settings` only from teachers. For reference:
 
 | Subject               | From → to             | Body                                         |
 | --------------------- | --------------------- | -------------------------------------------- |
 | `init`                | peer → station        | none: asks for state and GUI                 |
 | `update`              | station → peers       | `{ baudrate, autoconnect, connected, status, error }` |
-| `update`              | peer → station        | `{ baudrate, autoconnect }`                  |
-| `connect`, `reload`   | peer → station        | none                                         |
+| `connect`, `reload`   | teacher → station     | none: connect/disconnect, ask the Arduino for its GUI |
+| `settings`            | teacher → station     | `{ baudrate, autoconnect }`                  |
 | `receive-buffer`      | station → peers       | `Uint8Array`: bytes from the Arduino         |
 | `replay`              | station → joining peer | `{ complete, frames }`: the GUI so far      |
 | `receivedFromSandbox` | any → all             | `{ type, data }`: an action in someone's GUI |

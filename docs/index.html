@@ -107,6 +107,14 @@
   white-space: nowrap;
 }
 
+.station-controls {
+  display: contents;
+}
+
+.station-controls[hidden] {
+  display: none;
+}
+
 #stage {
   flex: 1;
   min-height: 0;
@@ -152,29 +160,32 @@
       <span id="message" class="message" role="status"></span>
 
       <span class="controls">
-        <label>
-          auto-connect: <input type="checkbox" id="autoconnect">
-        </label>
-        <label>
-          baud:
-          <select id="baudrate">
-            <option value="110">110</option>
-            <option value="300">300</option>
-            <option value="1200">1200</option>
-            <option value="2400">2400</option>
-            <option value="4800">4800</option>
-            <option value="9600" selected="">9600</option>
-            <option value="19200">19200</option>
-            <option value="38400">38400</option>
-            <option value="57600">57600</option>
-            <option value="115200">115200</option>
-          </select>
-        </label>
-        <button id="connect">
-          <span class="oi" data-glyph="link-intact" aria-hidden="true"></span>
-          <span id="connect-label">Connect</span>
-        </button>
-        <button id="reload" title="Ask the Arduino for its GUI again">
+        <!-- the station's: students see the state, not these -->
+        <span id="station-controls" class="station-controls" hidden="">
+          <label>
+            auto-connect: <input type="checkbox" id="autoconnect">
+          </label>
+          <label>
+            baud:
+            <select id="baudrate">
+              <option value="110">110</option>
+              <option value="300">300</option>
+              <option value="1200">1200</option>
+              <option value="2400">2400</option>
+              <option value="4800">4800</option>
+              <option value="9600" selected="">9600</option>
+              <option value="19200">19200</option>
+              <option value="38400">38400</option>
+              <option value="57600">57600</option>
+              <option value="115200">115200</option>
+            </select>
+          </label>
+          <button id="connect">
+            <span class="oi" data-glyph="link-intact" aria-hidden="true"></span>
+            <span id="connect-label">Connect</span>
+          </button>
+        </span>
+        <button id="reload">
           <span class="oi" data-glyph="reload" aria-hidden="true"></span>
           Reload
         </button>
@@ -189,6 +200,6 @@
       <p id="placeholder"></p>
     </div>
 
-    <script src="https://edrys-labs.github.io/module-arduinoview/index.e9adba75.js"></script>
+    <script src="https://edrys-labs.github.io/module-arduinoview/index.36780c67.js"></script>
   </body>
 </html>

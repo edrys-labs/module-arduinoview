@@ -1,14 +1,17 @@
 // The station connects the Arduino via Web Serial and relays its output to
 // every peer in the room; each peer renders the Arduino's GUI in its own
 // sandbox, and actions in any sandbox are written to the Arduino by the
-// station.
+// station. The station and teachers control the connection (a teacher's
+// clicks are carried out by the station); students see its state.
 // message subjects (all peers run this module, so they only need to agree
 // with themselves)
 const SUBJECT = {
     init: "init",
     update: "update",
+    // teacher -> station; the station checks the sender's role
     connect: "connect",
     reload: "reload",
+    settings: "settings",
     receiveBuffer: "receive-buffer",
     fromSandbox: "receivedFromSandbox",
     replay: "replay"
@@ -32,10 +35,8 @@ const DEFAULTS = {
 // most Arduinos reset when the port opens; give the bootloader time before
 // asking the sketch for its GUI
 const ARDUINO_RESET_DELAY = 2000;
-// a student's Connect/Reload waits this long for the station to react
-const STATION_TIMEOUT = 10000;
 // what the station keeps to replay the GUI to a joining peer: page-building
-// frames up to this many characters (more: the joiner has to click Reload),
+// frames up to this many characters (more: the station has to Reload),
 // the last value of each control, and the last graph data frames
 const REPLAY_LIMIT = 262144;
 const REPLAY_DATA_FRAMES = 1000;
@@ -56,14 +57,15 @@ let ready = false;
 let guiReceived = false;
 // the station's GUI was too large to replay to us
 let replayMissing = false;
-// a student asked the station for something and waits for its answer
-let pending = null;
 const serial = navigator.serial;
 let port = null;
 let reader = null;
 let writer = null;
 let readLoop = null;
 let closing = false;
+// counts connections: the same port object comes back on every connect, so
+// it cannot tell a timer from an earlier connection apart
+let connection = 0;
 // logging level: how much of the traffic is logged to the console (0 = none)
 const logging = 0;
 function logger(lvl, msg) {
@@ -73,6 +75,7 @@ const $ = (id)=>document.getElementById(id);
 const ui = {
     badge: $("badge"),
     message: $("message"),
+    stationControls: $("station-controls"),
     autoconnect: $("autoconnect"),
     baudrate: $("baudrate"),
     connect: $("connect"),
@@ -82,6 +85,9 @@ const ui = {
     placeholder: $("placeholder")
 };
 const isStation = ()=>Edrys.role === "station";
+const isTeacher = ()=>Edrys.role === "teacher";
+// messages are signed, so the sender's role holds
+const roleOf = (from)=>Edrys.liveClass?.users?.[from]?.role;
 // the id of the station in our room, if there is one
 function stationInRoom() {
     const room = Edrys.liveUser?.room;
@@ -105,7 +111,7 @@ function send(subject, body = null, user) {
 function render() {
     const station = isStation();
     const present = station || stationInRoom();
-    const busy = state.status === "connecting" || pending !== null;
+    const busy = state.status === "connecting";
     let badge;
     if (!ready) badge = [
         "loading\u2026",
@@ -133,15 +139,19 @@ function render() {
     ];
     ui.badge.textContent = badge[0];
     ui.badge.className = "badge " + badge[1];
-    ui.message.textContent = ready && !present ? "Open this room as a station to connect an Arduino." : pending ? "Asking the station\u2026" : state.error;
+    ui.message.textContent = ready && !present ? "Open this room as a station to connect an Arduino." : state.error;
+    // students see the state, the station and teachers control it
+    const controls = station || isTeacher();
+    ui.stationControls.hidden = !(ready && controls);
     ui.baudrate.value = state.baudrate;
     ui.autoconnect.checked = state.autoconnect;
     ui.connectLabel.textContent = state.connected ? "Disconnect" : "Connect";
-    ui.connect.disabled = !ready || !present || busy;
+    ui.connect.disabled = !present || busy;
+    ui.baudrate.disabled = ui.autoconnect.disabled = !present || busy || state.connected;
     ui.reload.disabled = !ready || !present;
-    ui.baudrate.disabled = ui.autoconnect.disabled = !ready || !present || busy || state.connected;
+    ui.reload.title = controls ? "Ask the Arduino for its GUI again" : "Load the GUI again from the station";
     ui.placeholder.hidden = guiReceived;
-    ui.placeholder.textContent = !ready ? "" : replayMissing ? "The GUI of the Arduino is too large to be sent to you. Click Reload to load it again." : state.connected ? "Waiting for the GUI of the Arduino\u2026" : station ? "Connect an Arduino to show its GUI." : "Waiting for the station to connect an Arduino\u2026";
+    ui.placeholder.textContent = !ready ? "" : replayMissing ? "The GUI of the Arduino is too large to be sent to you. It shows up when the station reloads it." : state.connected ? "Waiting for the GUI of the Arduino\u2026" : station ? "Connect an Arduino to show its GUI." : "Waiting for the station to connect an Arduino\u2026";
 }
 // station: change the state and tell everyone
 function setState(patch) {
@@ -151,24 +161,6 @@ function setState(patch) {
     };
     render();
     if (isStation()) send(SUBJECT.update, state);
-}
-function stopPending() {
-    if (pending) clearTimeout(pending);
-    pending = null;
-}
-// student: ask the station, and say so if it does not react
-function askStation(subject) {
-    send(subject);
-    stopPending();
-    pending = setTimeout(()=>{
-        pending = null;
-        state = {
-            ...state,
-            error: "The station did not answer."
-        };
-        render();
-    }, STATION_TIMEOUT);
-    render();
 }
 // station: baud rate and auto-connect from the teacher's config, else the
 // station's last choice, else the defaults
@@ -201,16 +193,23 @@ function saveSettings() {
         console.warn("could not save the settings:", e);
     }
 }
+// station: settings from its own controls or from a teacher
+function applySettings(body) {
+    if (state.connected || state.status === "connecting" || !body) return;
+    const baudrate = BAUD_RATES.includes(String(body.baudrate)) ? String(body.baudrate) : state.baudrate;
+    setState({
+        baudrate,
+        autoconnect: body.autoconnect === true
+    });
+    saveSettings();
+}
 function onSettingsChanged() {
     const settings = {
         baudrate: ui.baudrate.value,
         autoconnect: ui.autoconnect.checked
     };
-    if (isStation()) {
-        setState(settings);
-        saveSettings();
-    } else // the station applies them and answers with its state
-    send(SUBJECT.update, settings);
+    if (isStation()) applySettings(settings);
+    else if (isTeacher()) send(SUBJECT.settings, settings, stationInRoom());
 }
 // ---------------------------------------------------------------------------
 // Sandbox
@@ -332,10 +331,16 @@ function receiveFromSandbox(msg, publish) {
             writeSerial(msg.data);
             break;
         case "frame":
-            record(msg.data);
+            if (typeof msg.data !== "string") break;
+            // the sketch may define its own frames, so anything goes to the Arduino …
             sendArrayBuffer(prepareSerialFrame(msg.data));
-            // mirror the action (slider position, …) in this sandbox
-            if (!publish) sendToSandbox(msg.data);
+            // … but only control values (slider position, …) are mirrored to the
+            // other sandboxes and kept for the replay: a peer must not be able to
+            // put HTML or `!j` code into everyone's GUI
+            if (msg.data.startsWith("!g")) {
+                record(msg.data);
+                if (!publish) sendToSandbox(msg.data);
+            }
             break;
         case "resize":
             break;
@@ -457,13 +462,15 @@ async function connect(interactive) {
         // a port chosen before needs no picker (and the picker needs a click at the station)
         let p = state.autoconnect || !interactive ? (await serial.getPorts())[0] : null;
         if (!p) {
-            if (!interactive) throw new Error("no port chosen yet. Click Connect at the station once and choose the Arduino");
+            if (!interactive) // auto-connect: a browser shows the port dialog only after a click
+            throw new Error("no port chosen at the station yet. Click Connect at the station once and choose the Arduino");
             p = await serial.requestPort();
         }
         await p.open({
             baudRate: parseInt(state.baudrate)
         });
         port = p;
+        const current = ++connection;
         p.addEventListener("disconnect", ()=>onDeviceLost(p));
         readLoop = readFromPort(p);
         setState({
@@ -472,7 +479,7 @@ async function connect(interactive) {
             error: ""
         });
         setTimeout(()=>{
-            if (port !== p) return;
+            if (port !== p || connection !== current) return;
             clearRecording();
             sendArrayBuffer(prepareSerialFrame("!!"));
             sendHostInfo(true);
@@ -525,15 +532,19 @@ async function onDeviceLost(p) {
     });
 }
 function onConnectClicked() {
-    if (!isStation()) return askStation(SUBJECT.connect);
-    if (state.connected) disconnect();
+    if (isTeacher()) send(SUBJECT.connect, null, stationInRoom());
+    else if (!isStation()) return;
+    else if (state.connected) disconnect();
     else connect(true);
 }
+// station (and teachers through it): ask the Arduino for its GUI again, for
+// everyone; students: load the station's GUI again, only for themselves
 function onReloadClicked() {
     if (isStation()) reloadSandbox();
+    else if (isTeacher()) send(SUBJECT.reload, null, stationInRoom());
     else {
-        reloadSandbox();
-        send(SUBJECT.reload);
+        askedStation = undefined;
+        requestState();
     }
 }
 // ---------------------------------------------------------------------------
@@ -571,34 +582,30 @@ Edrys.onUpdate(()=>{
 Edrys.onMessage(({ from, subject, body })=>{
     // edrys delivers our own messages back to us, we have handled them already
     if (from === Edrys.username) return;
-    // messages are signed, so the sender's role holds
-    const fromStation = Edrys.liveClass?.users?.[from]?.role === "station";
+    const fromStation = roleOf(from) === "station";
     if (isStation()) {
         switch(subject){
             case SUBJECT.init:
                 send(SUBJECT.update, state, from);
                 send(SUBJECT.replay, replay(), from);
                 break;
+            case SUBJECT.fromSandbox:
+                receiveFromSandbox(body, false);
+                break;
+        }
+        // a teacher's clicks, carried out here; anyone else's are ignored
+        if (roleOf(from) !== "teacher") return;
+        switch(subject){
             case SUBJECT.connect:
                 if (state.connected) disconnect();
-                else connect(false);
+                else connect(false) // no port dialog: it needs a click at the station
+                ;
                 break;
             case SUBJECT.reload:
                 reloadSandbox();
                 break;
-            case SUBJECT.update:
-                if (!state.connected && state.status !== "connecting" && body) {
-                    const baudrate = BAUD_RATES.includes(String(body.baudrate)) ? String(body.baudrate) : state.baudrate;
-                    setState({
-                        baudrate,
-                        autoconnect: body.autoconnect === true
-                    });
-                    saveSettings();
-                } else // tell the sender its change was not applied
-                send(SUBJECT.update, state, from);
-                break;
-            case SUBJECT.fromSandbox:
-                receiveFromSandbox(body, false);
+            case SUBJECT.settings:
+                applySettings(body);
                 break;
         }
         return;
@@ -606,7 +613,6 @@ Edrys.onMessage(({ from, subject, body })=>{
     switch(subject){
         case SUBJECT.update:
             if (fromStation && body) {
-                stopPending();
                 state = {
                     ...state,
                     ...body
@@ -640,4 +646,4 @@ window.addEventListener("message", (event)=>{
 ui.sandbox.addEventListener("load", helloSandbox);
 render();
 
-//# sourceMappingURL=index.e9adba75.js.map
+//# sourceMappingURL=index.36780c67.js.map
