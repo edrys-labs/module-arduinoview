@@ -96,8 +96,9 @@ export default class BaseBox {
       },
       false
     )
-    // Don't message the host first: edrys.js in the host trusts the origin of
-    // the first message it gets. The host asks with `hello` once it is ready.
+    // Don't message the host first: edrys.js before edrys-Lite d7d17a1 trusted
+    // the origin of the first message it got, whoever sent it. The host asks
+    // with `hello` once it is ready.
   }
 
   HTMLreplace(value) {

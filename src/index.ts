@@ -220,8 +220,9 @@ function postToSandbox(msg: object) {
   else sandboxQueue.push(msg)
 }
 
-// Only after onReady: edrys.js trusts the origin of the first message this
-// window gets, so the sandbox's answer must not come before edrys-Lite's.
+// Only after onReady: edrys.js before edrys-Lite d7d17a1 trusted the origin of
+// the first message this window got, whoever sent it, so the sandbox's answer
+// must not come before edrys-Lite's. Kept for those versions.
 function helloSandbox() {
   if (ready) sandboxWindow()?.postMessage({ type: 'hello' }, '*')
 }
