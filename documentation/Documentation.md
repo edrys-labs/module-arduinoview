@@ -19,10 +19,13 @@ serial interface.
 UI-Elements
 HTML5+JavaScript        Application( Events)
 Framer(byte-stuffing)----Framer
-ChromeApp
+Edrys station (Web Serial)
 Serial------------------Serial
 USB
 ~~~
+
+The diagram shows the original desktop app (a Chrome App). In this module the Edrys station opens the serial port
+with Web Serial and relays the frames to everyone in its room; each browser runs the sandbox.
 
 ## The Frame
 
@@ -98,48 +101,50 @@ then bound to the runner "ni".
 ~~~{.javascript}
 !j
 function noI(str){
-    HTMLappend(str.replace(/i/i,""));
+    self.HTMLappend(str.replace(/i/i,""));
 }
 runner["ni"]=noI;
 ~~~
 
 ## Javascript commands
 
-    HTMLreplace(x)
-: replaces the innerHTML of the current work-element
-
-    HTMLappend(x)
-: creates an temporary div replaces its innerHTML and than transfers appends every node inside that div to the current work-element
-
-    sendraw(msg)
-: sends a message to the Arduino using the hosts connection sendraw instructs the host to not pack a frame the message-string will be send byte by byte
+Code sent with `!j` runs in the sandbox (an isolated iframe: it cannot reach the module or Edrys). These names are
+in scope there; `sendframe`, `sendraw` and `runner` are also global, so `onclick` attributes in the HTML can use
+them. A function defined in `!j` code is only global if you assign it to `window` (`window.f = function () {…}`).
 
     sendframe(msg)
-: sends a message to the Arduino using the hosts connection sendframe instructs the host to pack a frame
+: sends msg to the Arduino as a frame
 
-    alert = function ERROR(msg)
-: displays a red div to show errors and alerts
+    sendraw(msg)
+: sends msg to the Arduino byte by byte, without a frame
 
-    loadjsfile(filename, onload)
-: loads javascript-files by adding a script element to the head; see autoloader
+    self.HTMLreplace(x)
+: replaces the innerHTML of the current work-element
 
-    autoloader(filename,onload)
-: this serializes the loading of multiple js files to avoid race-condition
+    self.HTMLappend(x)
+: creates a temporary div, sets its innerHTML and then appends every node inside that div to the current work-element
 
-    loadcssfile(filename)
-: loads css-files by adding a style element to the head
+    self.setElement(id)
+: makes the element with this id (or IDs[] entry) the current work-element; no id: the page body
 
-    beep()
-: sounds a beep
+    self.loadJS(url, onload)
+: loads a JavaScript file by adding a script element to the head, then calls onload
 
-    receiveMessage(event)
-: receives the messages from the host window runs the matching runner
+    self.loadCSS(url)
+: loads a CSS file by adding a link element to the head
+
+    self.beep()
+: sounds a short beep
+
+    alert(msg)
+: the browser's alert (allowed in the sandbox); it blocks the page until someone clicks OK, so avoid it on an
+unattended station
 
     object: runner[]
 : associative array that maps runner id to the matching function
 
     runner['!!']
-: reload/resets sandbox
+: reloads/resets the sandbox
 
     runner.append(obj)
 : appends an object / dictionary to the runner list
@@ -210,13 +215,15 @@ interpretation of E
 | Shorthand | Description                                                                                              |
 | --------- | -------------------------------------------------------------------------------------------------------- |
 | l         | adds a line break                                                                                        |
-| b         | adds a Button <DATA> value will be interpreted as Caption; onclick it will send g  its 2 byte ID         |
-| p         | adds a color-Picker <DATA> value will be interpreted as hex string; onclick it will send g its 2 byte ID |
+| b         | adds a Button <DATA> value will be interpreted as Caption; onclick it will send !g + its 2 byte ID       |
+| p         | adds a color-Picker <DATA> value will be interpreted as hex string; on input it will send !g + its 2 byte ID + the colour (e.g. #ff0000) |
 | s         | adds a slider (range); onchange it will send !g + its 2 byte ID + it value (0-255)                       |
 | c         | adds a checkbox; onchange it will send !g + its 2 byte ID + its value (t or f)                           |
-| G         | adds a graph using the eCharts library (defaults to a moving Graph)                                      |
+| G         | adds a graph using the eCharts library (a moving graph, see `!d` below)                                  |
 | t         | adds a textinput; onchange it will send !g + its 2 byte ID + its value                                   |
+| k         | listens for keys on the work-element; value: d (keydown), u (keyup), p (keypress, default); sends !g + ID + d/u/p + key |
 | d         | adds a div block that is styled as a inline block                                                        |
+| M         | deprecated moving graph, same as G (logs a warning)                                                      |
 
 interpretation of DATA
 
@@ -249,9 +256,9 @@ The two div will be side by side.
 switch to the left div
 
 ~~~
-!SMgl
+!SGgl
 ~~~
-adds a moving graph to the left div with the IDs[] entry "gl" without further attributes it defaults to 100% width and 20em height
+adds a graph to the left div with the IDs[] entry "gl"; without further attributes it is 100% wide and 20em high
 
 ~~~
 !wri
@@ -261,25 +268,28 @@ switch to the right div
 ~~~
 !SGgrw80%!h300px
 ~~~
-adds a not moving graph to the right div with the IDs[] entry "gr" its width will be 80% of the right div and its height 300px
+adds a graph to the right div with the IDs[] entry "gr"; its width will be 80% of the right div and its height 300px
 
-The graphs may now be filled with Data, this can be done by either accessing the plot container via JavaScript GUI-data runner of the Graph '!d'.
+The graphs are filled with the GUI-data runner `!d`, one value per frame:
 
 ~~~
-!dgr100,200
+!dgr100,0,42
 ~~~
 
-writes the values 100 and 200 to the GUI Elemet gr, the graph will interprete them as values to be attached to the graph.
+adds the value 42 to graph gr. The data is `<max>,<x>,<y>`: the graph keeps the last `max` values (0: all of them,
+the graph then does not move), `x` is not used (the time of arrival is the x axis) and `y` is the value. `!c` takes
+the same numbers.
 
 ## The UI
 
 ### Main UI
 
-![Main UI window of Arduinoview](./MyImages/mainWindow.png){ width=66% }
+![The module in Edrys](../screenshot.png)
 
-The Main UI consists of two parts the host window and the application sandbox, a frame within the host window. The host window is used to establish the
-connection to the Arduino, while the sandbox frame contains the GUI application create via Arduinoview. If a frame arrives from the Arduino it is decoded by
-the host and its content is transferred to the application in the sandbox which interprets the frame contend.
+The UI consists of two parts: the host, the header with the connection state and controls, and the application
+sandbox, an iframe below it. At the station, the host opens the connection to the Arduino. In every browser in the
+room, the sandbox contains the GUI the Arduino created. When a frame arrives from the Arduino, the host decodes it
+and passes its content to the sandbox, which interprets it. See the [README](../README.md) for roles and settings.
 
 ### The Stringformer
 
@@ -291,7 +301,7 @@ Example:
 
 ~~~ {.javascript width=48%}
 function hello(){
-    HTMLappend("<h1>Hello World</h1>")
+    self.HTMLappend("<h1>Hello World</h1>")
     }
 ~~~
 
@@ -299,9 +309,11 @@ will become:
 
 ~~~ {.c width=48%}
 "function hello(){\n"
-"HTMLappend(\"<h1>Hello World</h1>\")\n"
+"self.HTMLappend(\"<h1>Hello World</h1>\")\n"
 "}\n"
 ~~~
+
+Open it with `npx parcel src/stringformer.html` in this repository.
 
 
 # The Arduino library
